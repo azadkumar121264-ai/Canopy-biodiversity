@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canopy — Identify any species</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --white:#ffffff;
+    --leaf-50:#eef8f0;
+    --leaf-100:#dcefdf;
+    --leaf-200:#bfe1c6;
+    --leaf-400:#6fb583;
+    --leaf-500:#4b9c66;
+    --leaf-600:#37814f;
+    --forest-700:#1d4430;
+    --forest-900:#12291d;
+    --ink:#213027;
+    --ink-soft:#54655b;
+    --line:#d7e8db;
+    --shadow: 0 10px 30px rgba(18,41,29,0.08);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--white);
+    color:var(--ink);
+    font-family:'Manrope', sans-serif;
+    line-height:1.55;
+  }
+  h1,h2,h3,.serif{
+    font-family:'Fraunces', serif;
+    color:var(--forest-900);
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  a{color:inherit;}
+  img{max-width:100%; display:block;}
+  .wrap{max-width:1140px; margin:0 auto; padding:0 28px;}
+  button{font-family:inherit; cursor:pointer;}
+  :focus-visible{outline:3px solid var(--leaf-500); outline-offset:2px;}
+  body.dark-mode{
+    --white:#14251b;
+    --leaf-50:#1b3325;
+    --leaf-100:#294b35;
+    --leaf-200:#3d6d4c;
+    --leaf-400:#78c18c;
+    --leaf-500:#8bd39d;
+    --leaf-600:#a2e0b1;
+    --forest-700:#d0ead5;
+    --forest-900:#f2fff4;
+    --ink:#e6f4e9;
+    --ink-soft:#b8cdbd;
+    --line:#365440;
+    --shadow:0 10px 30px rgba(0,0,0,0.24);
+    background:#102018;
+  }
+  body.dark-mode header{background:rgba(16,32,24,0.94);}
+  body.dark-mode .id-card,
+  body.dark-mode .species-card,
+  body.dark-mode .search-box,
+  body.dark-mode .modal,
+  body.dark-mode .oauth-btn,
+  body.dark-mode .dropzone{background:#182c20;}
+  body.dark-mode .btn-ghost{color:var(--forest-700);}
+  body.dark-mode .app-section{background:#0b1710;}
+  body.dark-mode .species-section{background:#14291c;}
+  body.dark-mode .modal-tabs{background:#203b29;}
+  body.dark-mode .modal-tab.active{background:#182c20; color:var(--forest-900);}
+  body.dark-mode .field input{background:#102018; color:var(--ink);}
+  body.dark-mode .hero{background:linear-gradient(180deg,#183323 0%,#102018 78%);}
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky; top:0; z-index:40;
+    background:rgba(255,255,255,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  nav.wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    height:72px;
+  }
+  .logo{
+    display:flex; align-items:center; gap:9px;
+    font-family:'Fraunces', serif; font-weight:600; font-size:22px;
+    color:var(--forest-900);
+  }
+  .logo svg{width:26px; height:26px;}
+  .logo-photo{width:26px; height:26px; border-radius:50%; object-fit:cover; border:2px solid var(--leaf-200);}
+  .theme-toggle{display:inline-flex; align-items:center; gap:7px; padding:7px 10px;}
+  .theme-track{width:32px; height:18px; border-radius:12px; background:var(--line); padding:2px; display:inline-flex; align-items:center; transition:background .2s;}
+  .theme-thumb{width:14px; height:14px; border-radius:50%; background:var(--forest-700); transition:transform .2s;}
+  body.dark-mode .theme-track{background:var(--leaf-500);}
+  body.dark-mode .theme-thumb{transform:translateX(14px); background:var(--forest-900);}
+  .nav-links{
+    display:flex; gap:30px; list-style:none; margin:0; padding:0;
+    font-size:15px; font-weight:500; color:var(--ink-soft);
+  }
+  .nav-links a{text-decoration:none; transition:color .15s;}
+  .nav-links a:hover{color:var(--forest-700);}
+  .nav-actions{display:flex; align-items:center; gap:12px;}
+  .btn{
+    border:none; border-radius:9px; padding:10px 18px;
+    font-size:14.5px; font-weight:600; transition:transform .12s ease, background .15s;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-ghost{background:transparent; color:var(--forest-700); border:1.5px solid var(--line);}
+  .btn-ghost:hover{background:var(--leaf-50);}
+  .btn-solid{background:var(--forest-700); color:#fff;}
+  .btn-solid:hover{background:var(--forest-900);}
+  .menu-toggle{display:none; background:none; border:none; padding:8px;}
+  .menu-toggle span{display:block; width:22px; height:2px; background:var(--forest-900); margin:5px 0;}
+
+  /* ---------- HERO / IDENTIFY DEMO ---------- */
+  .hero{
+    background:linear-gradient(180deg, var(--leaf-50) 0%, #ffffff 78%);
+    padding:64px 0 40px;
+  }
+  .hero-grid{
+    display:grid; grid-template-columns:1.05fr 0.95fr; gap:56px; align-items:center;
+  }
+  .eyebrow-tag{
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--leaf-100); color:var(--forest-700);
+    font-size:13px; font-weight:600; padding:6px 12px; border-radius:100px;
+    margin-bottom:18px;
+  }
+  .eyebrow-tag .dot{width:6px; height:6px; border-radius:50%; background:var(--leaf-500);}
+  .hero h1{
+    font-size:46px; font-weight:500; line-height:1.08; margin-bottom:18px;
+  }
+  .hero p.lede{
+    font-size:17px; color:var(--ink-soft); max-width:460px; margin-bottom:28px;
+  }
+  .hero-cta{display:flex; gap:14px; flex-wrap:wrap;}
+  .hero-stats{display:flex; gap:32px; margin-top:38px;}
+  .hero-stats div strong{display:block; font-family:'Fraunces',serif; font-size:26px; color:var(--forest-900);}
+  .hero-stats div span{font-size:13px; color:var(--ink-soft);}
+
+  /* Identify card */
+  .id-card{
+    background:#fff; border:1px solid var(--line); border-radius:20px;
+    box-shadow:var(--shadow); padding:22px; position:relative;
+  }
+  .id-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .id-card-head h3{font-size:15px; font-weight:600; font-family:'Manrope';}
+  .id-card-head span{font-size:12px; color:var(--ink-soft);}
+  .dropzone{
+    border:1.5px dashed var(--leaf-400); border-radius:14px;
+    background:var(--leaf-50);
+    padding:30px 16px; text-align:center; cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  .dropzone:hover, .dropzone.drag{background:var(--leaf-100); border-color:var(--leaf-600);}
+  .dropzone svg{width:34px; height:34px; margin:0 auto 10px; color:var(--leaf-600);}
+  .dropzone strong{display:block; font-size:14.5px; color:var(--forest-700); margin-bottom:3px;}
+  .dropzone p{font-size:12.5px; color:var(--ink-soft); margin:0;}
+  #fileInput{display:none;}
+
+  .preview-row{display:flex; gap:14px; align-items:center; margin-top:6px;}
+  .preview-thumb{width:88px; height:88px; border-radius:12px; object-fit:cover; border:1px solid var(--line);}
+  .preview-meta{flex:1;}
+  .preview-meta p{margin:0; font-size:13px; color:var(--ink-soft);}
+  .preview-meta strong{font-size:14px;}
+
+  .analyzing{display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--forest-700); margin-top:14px;}
+  .spin{width:16px; height:16px; border:2px solid var(--leaf-200); border-top-color:var(--forest-700); border-radius:50%; animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .results{margin-top:16px; display:none;}
+  .results.show{display:block;}
+  .results-summary{font-size:13px; font-weight:700; color:var(--forest-700); padding:0 4px 8px;}
+  .result-item{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 4px; border-top:1px solid var(--line);
+  }
+  .result-item:first-child{border-top:none;}
+  .result-rank{
+    width:26px; height:26px; border-radius:50%; background:var(--leaf-100); color:var(--forest-700);
+    font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .result-item:first-child .result-rank{background:var(--forest-700); color:#fff;}
+  .result-photo{width:52px; height:52px; border-radius:10px; object-fit:cover; flex-shrink:0; border:1px solid var(--line); background:var(--leaf-50);}
+  .result-name strong{display:block; font-size:14px;}
+  .result-name em{font-size:12.5px; color:var(--ink-soft); font-style:italic;}
+  .result-facts{display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:5px; font-size:11px; color:var(--ink-soft);}
+  .result-conf{margin-left:auto; text-align:right; font-size:12.5px; color:var(--leaf-600); font-weight:700; min-width:44px;}
+  .bar{height:4px; background:var(--leaf-100); border-radius:3px; margin-top:4px; overflow:hidden;}
+  .bar span{display:block; height:100%; background:var(--leaf-500);}
+  .demo-note{font-size:11.5px; color:var(--ink-soft); margin-top:12px; border-top:1px dashed var(--line); padding-top:10px;}
+
+  /* ---------- HOW IT WORKS ---------- */
+  .section{padding:80px 0;}
+  .section-head{max-width:560px; margin-bottom:46px;}
+  .section-head span.kicker{color:var(--leaf-600); font-weight:700; font-size:13.5px;}
+  .section-head h2{font-size:32px; font-weight:500; margin-top:8px;}
+  .section-head p{color:var(--ink-soft); font-size:15.5px; margin-top:10px;}
+
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:30px;}
+  .step{padding-top:18px; border-top:2px solid var(--leaf-200);}
+  .step .num{font-family:'Fraunces',serif; font-size:24px; color:var(--leaf-500); display:block; margin-bottom:10px;}
+  .step h3{font-size:17px; font-weight:600; font-family:'Manrope'; margin-bottom:8px; color:var(--forest-900);}
+  .step p{font-size:14.5px; color:var(--ink-soft); margin:0;}
+
+  /* ---------- SPECIES GRID ---------- */
+  .species-section{background:var(--leaf-50);}
+  .species-toolbar{display:flex; gap:12px; margin-bottom:28px; flex-wrap:wrap;}
+  .chip{
+    border:1px solid var(--line); background:#fff; border-radius:100px; padding:8px 16px;
+    font-size:13.5px; font-weight:600; color:var(--ink-soft);
+  }
+  .chip.active{background:var(--forest-700); color:#fff; border-color:var(--forest-700);}
+  .search-box{
+    flex:1; min-width:200px; display:flex; align-items:center; gap:8px;
+    background:#fff; border:1px solid var(--line); border-radius:100px; padding:8px 16px;
+  }
+  .search-box input{border:none; outline:none; font-size:13.5px; width:100%; font-family:inherit; background:transparent;}
+  .species-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px;}
+  .species-card{
+    background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden;
+    transition:box-shadow .15s, transform .15s;
+  }
+  .species-card:hover{box-shadow:var(--shadow); transform:translateY(-2px);}
+  .species-photo{height:130px; width:100%; object-fit:cover; background-size:cover; background-position:center;}
+  .species-body{padding:14px 16px 16px;}
+  .species-body strong{display:block; font-size:14.5px;}
+  .species-body em{font-size:12px; color:var(--ink-soft); font-style:italic; display:block; margin-bottom:8px;}
+  .species-description{font-size:12px; color:var(--ink-soft); margin:10px 0 8px;}
+  .species-facts{display:grid; gap:4px; font-size:11.5px; color:var(--ink-soft);}
+  .species-facts strong{display:inline; font-size:11.5px; color:var(--forest-700);}
+  .status-tag{font-size:11px; font-weight:700; padding:3px 9px; border-radius:100px; background:var(--leaf-100); color:var(--forest-700); display:inline-block;}
+
+  /* ---------- APP DOWNLOAD ---------- */
+  .app-section{
+    background:var(--forest-900); color:#fff; border-radius:26px; margin:0 28px;
+    padding:60px 48px; display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center;
+  }
+  .app-section h2{color:#fff; font-size:30px; font-weight:500;}
+  .app-section p{color:#c7dccd; font-size:15px; margin-top:12px; max-width:420px;}
+  .store-badges{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;}
+  .store-btn{
+    display:flex; align-items:center; gap:10px; background:#fff; color:var(--forest-900);
+    border-radius:11px; padding:11px 18px; text-decoration:none; font-weight:600; font-size:14px;
+    border:1px solid transparent;
+  }
+  .store-btn:hover{background:var(--leaf-100);}
+  .store-btn svg{width:20px; height:20px;}
+  .qr-box{
+    background:#fff; border-radius:18px; padding:20px; text-align:center; justify-self:end; width:180px;
+  }
+  .qr-box .qr-grid{width:120px; height:120px; margin:0 auto 10px; background:
+      repeating-linear-gradient(0deg, var(--forest-900) 0 6px, #fff 6px 12px),
+      repeating-linear-gradient(90deg, var(--forest-900) 0 6px, transparent 6px 12px);
+    background-blend-mode:multiply; border-radius:6px;}
+  .qr-box p{color:var(--forest-900); font-size:12px; margin:0;}
+
+  /* ---------- FOOTER ---------- */
+  footer{padding:60px 0 34px; border-top:1px solid var(--line); margin-top:60px;}
+  .footer-grid{display:grid; grid-template-columns:1.4fr repeat(3,1fr); gap:30px; margin-bottom:40px;}
+  .footer-grid h4{font-size:13.5px; font-weight:700; color:var(--forest-900); margin-bottom:14px;}
+  .footer-grid ul{list-style:none; padding:0; margin:0; display:grid; gap:9px;}
+  .footer-grid a{text-decoration:none; color:var(--ink-soft); font-size:13.5px;}
+  .footer-grid a:hover{color:var(--forest-700);}
+  .footer-bottom{display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--ink-soft); flex-wrap:wrap; gap:10px;}
+
+  /* ---------- MODAL (login/signup) ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(18,41,29,0.45);
+    display:none; align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:#fff; border-radius:18px; width:100%; max-width:380px; padding:30px 28px;
+    box-shadow:0 24px 60px rgba(18,41,29,0.25);
+  }
+  .modal-tabs{display:flex; gap:6px; background:var(--leaf-50); border-radius:10px; padding:4px; margin-bottom:22px;}
+  .modal-tab{flex:1; text-align:center; padding:9px; border:none; background:transparent; border-radius:8px; font-weight:600; font-size:13.5px; color:var(--ink-soft);}
+  .modal-tab.active{background:#fff; color:var(--forest-900); box-shadow:0 1px 4px rgba(18,41,29,0.12);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+  .field input{
+    width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 12px;
+    font-size:14px; font-family:inherit; outline:none;
+  }
+  .field input:focus{border-color:var(--leaf-500);}
+  .modal .btn-solid{width:100%; padding:12px; margin-top:6px; border-radius:9px;}
+  .modal-close{position:absolute; top:16px; right:16px; background:none; border:none; font-size:20px; color:var(--ink-soft); line-height:1;}
+  .modal{position:relative;}
+  .modal-foot{font-size:12.5px; color:var(--ink-soft); text-align:center; margin-top:16px;}
+  .divider{display:flex; align-items:center; gap:10px; margin:16px 0; font-size:12px; color:var(--ink-soft);}
+  .divider::before, .divider::after{content:""; flex:1; height:1px; background:var(--line);}
+  .oauth-btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; border:1.5px solid var(--line); background:#fff; border-radius:9px; padding:10px; font-size:13.5px; font-weight:600; color:var(--ink);}
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--forest-900); color:#fff; padding:12px 20px; border-radius:10px; font-size:13.5px;
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:200;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  @media(max-width:900px){
+    .hero-grid{grid-template-columns:1fr;}
+    .nav-links{display:none;}
+    .menu-toggle{display:block;}
+    .steps{grid-template-columns:1fr;}
+    .species-grid{grid-template-columns:repeat(2,1fr);}
+    .app-section{grid-template-columns:1fr; padding:40px 26px; margin:0 16px;}
+    .qr-box{justify-self:start;}
+    .footer-grid{grid-template-columns:1fr 1fr;}
+    .hero h1{font-size:34px;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="wrap">
+    <div class="logo">
+      <img class="logo-photo" src="https://inaturalist-open-data.s3.amazonaws.com/photos/732610336/medium.jpg" alt="Northern cardinal">
+      Canopy
+    </div>
+    <ul class="nav-links">
+      <li><a href="#identify">Identify</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#species">Explore species</a></li>
+      <li><a href="#app">Get the app</a></li>
+    </ul>
+    <div class="nav-actions">
+      <button class="btn btn-ghost" onclick="openDemoLogin()">Log in</button>
+      <button class="btn btn-ghost theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Switch to dark mode"><span class="theme-track"><span class="theme-thumb"></span></span><span id="themeLabel">Dark mode</span></button>
+      <button class="menu-toggle" onclick="toggleMobileNav()" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow-tag"><span class="dot"></span>Free & open to everyone</span>
+      <h1>Point, snap, and know what you're looking at.</h1>
+      <p class="lede">Canopy identifies plants, insects, birds, and fungi from a single photo, then connects you to a community of naturalists logging sightings near you.</p>
+      <div class="hero-cta">
+        <button class="btn btn-solid" onclick="document.getElementById('fileInput').click()">Try an identification</button>
+        <a href="#app" class="btn btn-ghost" style="text-decoration:none; display:inline-flex; align-items:center;">Download the app</a>
+      </div>
+      <div class="hero-stats">
+        <div><strong>2.1M+</strong><span>species records</span></div>
+        <div><strong>430K</strong><span>naturalists</span></div>
+        <div><strong>96%</strong><span>ID accuracy on clear photos</span></div>
+      </div>
+    </div>
+
+    <div class="id-card">
+      <div class="id-card-head">
+        <h3>Identify a species</h3>
+        <span>Live API</span>
+      </div>
+
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <strong>Drop a photo, or click to upload</strong>
+        <p>JPG or PNG — try a leaf, a bug, a bird, anything</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/*">
+
+      <div id="previewArea"></div>
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">The process</span>
+      <h2>From photo to species page in seconds</h2>
+      <p>Canopy pairs a vision model trained on verified naturalist photos with a taxonomy database, so results come with real confidence — not guesses.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>Upload a photo</h3>
+        <p>Snap a picture in the field or upload one you already have. No special angle or lighting required.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>Get ranked matches</h3>
+        <p>See your top candidate species with confidence scores, so you know how certain the match is.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>Save and learn</h3>
+        <p>Add it to your sightings log, read about its habitat and range, and see where others have spotted it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SPECIES GRID -->
+<section class="section species-section" id="species">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Explore</span>
+      <h2>Recently identified nearby</h2>
+      <p>A small sample of what the Canopy community has logged this week.</p>
+    </div>
+
+    <div class="species-toolbar">
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#54655b" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input type="text" id="speciesSearch" placeholder="Search species by name...">
+      </div>
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="Plant">Plants</button>
+      <button class="chip" data-filter="Insect">Insects</button>
+      <button class="chip" data-filter="Bird">Birds</button>
+      <button class="chip" data-filter="Fungi">Fungi</button>
+    </div>
+
+    <div class="species-grid" id="speciesGrid"></div>
+  </div>
+</section>
+
+<!-- APP DOWNLOAD -->
+<section class="section" id="app" style="padding-top:20px;">
+  <div class="app-section">
+    <div>
+      <h2>Take Canopy into the field</h2>
+      <p>Download the Canopy web app directly and open it on your computer or mobile browser.</p>
+      <div class="store-badges">
+        <a href="./canopy-biodiversity-app.html" download="canopy-biodiversity-app.html" class="store-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 18v2h14v-2"/></svg>
+          <span>Download Canopy</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <div class="logo" style="margin-bottom:12px;">
+          <img class="logo-photo" src="https://inaturalist-open-data.s3.amazonaws.com/photos/732610336/medium.jpg" alt="Northern cardinal">
+          Canopy
+        </div>
+        <p style="font-size:13.5px; color:var(--ink-soft); max-width:260px;">A free tool for identifying and recording the living world around you.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#identify">Identify</a></li>
+          <li><a href="#species">Explore species</a></li>
+          <li><a href="#app">Mobile app</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Community</h4>
+        <ul>
+          <li><a href="#">Naturalists</a></li>
+          <li><a href="#">Projects</a></li>
+          <li><a href="#">Guidelines</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Privacy</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Canopy. Not affiliated with iNaturalist.</span>
+      <span>Photos: <a href="https://www.inaturalist.org/" target="_blank" rel="noopener">iNaturalist community observations</a>, used under each photographer's stated license.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- DEMO LOGIN -->
+<div class="modal-overlay" id="demoLoginOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDemoLogin()">&times;</button>
+    <h3 style="font-size:24px; margin-bottom:8px;">Welcome to Canopy</h3>
+    <p style="font-size:13px; color:var(--ink-soft); margin:0 0 18px;">Demo account: Canopy / 12345</p>
+    <div class="field"><label>Username</label><input id="demoUsername" type="text" autocomplete="username" value="Canopy"></div>
+    <div class="field"><label>Password</label><input id="demoPassword" type="password" autocomplete="current-password" value="12345"></div>
+    <button class="btn btn-solid" style="width:100%;" onclick="loginDemoUser()">Log in</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ---------- Nav / modal ---------- */
+  function toggleMobileNav(){
+    const links = document.querySelector('.nav-links');
+    links.style.display = links.style.display === 'flex' ? 'none' : 'flex';
+  }
+    function updateThemeToggle(){
+      const isDark = document.body.classList.contains('dark-mode');
+      const toggle = document.getElementById('themeToggle');
+      document.getElementById('themeLabel').textContent = isDark ? 'Light mode' : 'Dark mode';
+      toggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    }
+    function toggleTheme(){
+      const isDark = document.body.classList.toggle('dark-mode');
+      localStorage.setItem('canopyTheme', isDark ? 'dark' : 'light');
+      updateThemeToggle();
+    }
+    if(localStorage.getItem('canopyTheme') === 'dark') document.body.classList.add('dark-mode');
+    updateThemeToggle();
+  function openDemoLogin(){
+    document.getElementById('demoLoginOverlay').classList.add('show');
+  }
+  function closeDemoLogin(){
+    document.getElementById('demoLoginOverlay').classList.remove('show');
+  }
+  document.getElementById('demoLoginOverlay').addEventListener('click', event=>{
+    if(event.target.id === 'demoLoginOverlay') closeDemoLogin();
+  });
+  function loginDemoUser(){
+    const username = document.getElementById('demoUsername').value.trim();
+    const password = document.getElementById('demoPassword').value;
+    if(username === 'Canopy' && password === '12345'){
+      localStorage.setItem('canopyDemoUser', username);
+      closeDemoLogin();
+      showToast('Logged in as Canopy. Demo account only.');
+      return;
+    }
+    showToast('Use username Canopy and password 12345.');
+  }
+  const firebaseConfig = {
+    apiKey: 'PASTE_FIREBASE_API_KEY',
+    authDomain: 'PASTE_FIREBASE_AUTH_DOMAIN',
+    projectId: 'PASTE_FIREBASE_PROJECT_ID',
+    storageBucket: 'PASTE_FIREBASE_STORAGE_BUCKET',
+    messagingSenderId: 'PASTE_FIREBASE_MESSAGING_SENDER_ID',
+    appId: 'PASTE_FIREBASE_APP_ID'
+  };
+  const firebaseReady = !firebaseConfig.apiKey.startsWith('PASTE_');
+  let firestore = null;
+  if(firebaseReady){
+    firebase.initializeApp(firebaseConfig);
+    firestore = firebase.firestore();
+    firebase.auth().onAuthStateChanged(user=>{
+      if(user) showToast(`Signed in as ${user.email}`);
+    });
+  }
+  function requireFirebase(){
+    if(!firebaseReady){
+      showToast('Add your Firebase web configuration before using accounts.');
+      return false;
+    }
+    return true;
+  }
+  async function signupUser(){
+    if(!requireFirebase()) return;
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    if(!name || !email || password.length < 6){
+      showToast('Enter your name, email, and a password of at least 6 characters.');
+      return;
+    }
+    try{
+      const credential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+      await credential.user.updateProfile({displayName:name});
+      await firestore.collection('users').doc(credential.user.uid).set({
+        name, email, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+      showToast('Account created and saved securely.');
+    }catch(error){
+      showToast(error.message);
+    }
+  }
+  async function loginUser(){
+    if(!requireFirebase()) return;
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    try{
+      await firebase.auth().signInWithEmailAndPassword(email, password);
+      showToast('Logged in successfully.');
+    }catch(error){
+      showToast(error.message);
+    }
+  }
+  async function saveIdentification(candidates, file){
+    const user = firebaseReady ? firebase.auth().currentUser : null;
+    if(!user || !firestore) return;
+    await firestore.collection('users').doc(user.uid).collection('identifications').add({
+      fileName:file.name,
+      candidates:candidates.map(({name, latin, confidence, observations, conservation, location})=>({name, latin, confidence, observations:observations || null, conservation:conservation || null, location:location || null})),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(()=>t.classList.remove('show'), 3200);
+  }
+
+  /* ---------- Identify demo ---------- */
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const previewArea = document.getElementById('previewArea');
+  const resultsBox = document.getElementById('results');
+  const INAT_API = 'https://api.inaturalist.org/v1';
+  const INAT_VISION_API = 'https://api.inaturalist.org/v1/computervision/score_image';
+  const DEFAULT_INAT_VISION_TOKEN = 'eyJhbGciOiJIUzUxMiJ9.eyJ1c2VyX2lkIjoxMTAxODU4NCwiZXhwIjoxNzg5MjMzMjg3fQ.XKBP6bIz-SdyLyFLnPRcb2VMS3Pjf6s6yKi-K3CMgyKyBaAezWakusv36-_SQLpUFyqFQdohFmdy_QgWZFOrlw';
+
+  ['dragover','dragleave','drop'].forEach(evt=>{
+    dropzone.addEventListener(evt, e=>{
+      e.preventDefault();
+      dropzone.classList.toggle('drag', evt === 'dragover');
+      if(evt === 'drop' && e.dataTransfer.files[0]){
+        fileInput.files = e.dataTransfer.files;
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+  });
+  fileInput.addEventListener('change', ()=>{
+    if(fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  async function identifyWithINaturalist(file){
+    const formData = new FormData();
+    formData.append('image', file, file.name);
+    const visionToken = localStorage.getItem('inatVisionToken') || DEFAULT_INAT_VISION_TOKEN;
+    const response = await fetch(INAT_VISION_API, {
+      method:'POST',
+      body:formData,
+      headers:{
+        'Accept':'application/json',
+        ...(visionToken ? {'Authorization':`Bearer ${visionToken}`} : {})
+      }
+    });
+    if(!response.ok) throw new Error(`Identification failed (${response.status}) at ${INAT_VISION_API}`);
+    const payload = await response.json();
+    const candidates = Array.isArray(payload.results) ? payload.results : [];
+    return candidates.slice(0, 5).map(result=>({
+      name: result.taxon?.preferred_common_name || result.taxon?.name || 'Unknown species',
+      latin: result.taxon?.name || '',
+      confidence: Math.round((result.score || 0) * 100),
+      photo: result.taxon?.default_photo?.medium_url || result.taxon?.default_photo?.square_url || ''
+    }));
+  }
+
+  async function addObservationPhoto(candidate){
+    if(!candidate.latin) return candidate;
+    try{
+      const [observationsResponse, taxaResponse] = await Promise.all([
+        fetch(`${INAT_API}/observations?taxon_name=${encodeURIComponent(candidate.latin)}&photos=true&quality_grade=research&per_page=1&order=desc`),
+        fetch(`${INAT_API}/taxa?q=${encodeURIComponent(candidate.latin)}&per_page=1`)
+      ]);
+      if(!observationsResponse.ok) return candidate;
+      const payload = await observationsResponse.json();
+      const taxon = taxaResponse.ok ? (await taxaResponse.json()).results?.[0] : null;
+      const photo = payload.results?.[0]?.photos?.[0];
+      candidate.photo = candidate.photo || photo?.url?.replace('/square.', '/medium.') || photo?.url || '';
+      candidate.observations = taxon?.observations_count ?? payload.total_results;
+      candidate.conservation = taxon?.conservation_status?.status_name || 'Conservation status unavailable';
+      candidate.location = payload.results?.[0]?.place_guess || '';
+    }catch(error){
+      console.warn('Could not load species photo', error);
+    }
+    return candidate;
+  }
+
+  function renderIdentificationResults(candidates, note){
+    resultsBox.innerHTML = `${candidates.length ? `<div class="results-summary">${candidates.length} candidate species found</div>` : ''}${candidates.map((candidate, index)=>`
+      <div class="result-item">
+        ${candidate.photo ? `<img class="result-photo" src="${candidate.photo}" alt="Photo of ${candidate.name}" loading="lazy">` : ''}
+        <div class="result-rank">${index + 1}</div>
+        <div class="result-name" style="flex:1;">
+          <strong>${candidate.name}</strong>
+          <em>${candidate.latin}</em>
+          <div class="result-facts">
+            <span>${candidate.conservation || 'Status unavailable'}</span>
+            <span>${typeof candidate.observations === 'number' ? `${candidate.observations.toLocaleString()} public observations` : 'Observation count unavailable'}</span>
+            ${candidate.location ? `<span>Last recorded near ${candidate.location}</span>` : ''}
+          </div>
+          <div class="bar"><span style="width:${candidate.confidence}%"></span></div>
+        </div>
+        <div class="result-conf">${candidate.confidence}%</div>
+      </div>
+    `).join('')}<p class="demo-note">${note}</p>`;
+    resultsBox.classList.add('show');
+  }
+
+  async function handleFile(file){
+    resultsBox.classList.remove('show');
+    resultsBox.innerHTML = '';
+    const url = URL.createObjectURL(file);
+    previewArea.innerHTML = `
+      <div class="preview-row">
+        <img class="preview-thumb" src="${url}" alt="Uploaded photo preview">
+        <div class="preview-meta">
+          <strong>${file.name}</strong>
+          <p>${(file.size/1024).toFixed(0)} KB — ready to analyze</p>
+        </div>
+      </div>
+      <div class="analyzing" id="analyzing"><span class="spin"></span> Analyzing photo...</div>
+    `;
+    try{
+      let candidates = await identifyWithINaturalist(file);
+      if(!candidates.length) throw new Error('No species candidates returned');
+      candidates = await Promise.all(candidates.map(addObservationPhoto));
+      document.getElementById('analyzing')?.remove();
+      renderIdentificationResults(candidates, 'Live identification by iNaturalist Computer Vision. Observation totals are public sightings, not the species\' total wild population; locations may be obscured for threatened species.');
+      try{
+        await saveIdentification(candidates, file);
+      }catch(saveError){
+        console.warn('Could not save identification history', saveError);
+      }
+    }catch(error){
+      console.warn('Live identification unavailable', error);
+      document.getElementById('analyzing')?.remove();
+      renderIdentificationResults([], 'Live identification could not be completed. The vision service requires API authentication; no guessed species are shown. Add a valid vision API credential and try again.');
+    }
+  }
+
+  /* ---------- Species grid ---------- */
+  const species = [
+    {name:"Amur leopard", latin:"Panthera pardus orientalis", cat:"Mammal", status:"Critically Endangered", description:"A rare spotted big cat adapted to cold forests.", found:"Russian Far East and northeast China", population:"About 100-120 wild individuals (estimate)", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/731949181/medium.jpg"},
+    {name:"vaquita", latin:"Phocoena sinus", cat:"Mammal", status:"Critically Endangered", description:"The world's smallest porpoise, threatened by gillnets.", found:"Northern Gulf of California, Mexico", population:"Fewer than 10 detected in recent surveys (estimate)", img:"https://static.inaturalist.org/photos/409893254/medium.jpg"},
+    {name:"Kākāpō", latin:"Strigops habroptila", cat:"Bird", status:"Critically Endangered", description:"A nocturnal, flightless parrot managed through recovery work.", found:"Predator-free islands of New Zealand", population:"About 240 living birds (managed population)", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/729839488/medium.jpg"},
+    {name:"saola", latin:"Pseudoryx nghetinhensis", cat:"Mammal", status:"Critically Endangered", description:"A shy forest bovine sometimes called the Asian unicorn.", found:"Annamite Range of Laos and Vietnam", population:"Unknown; no reliable total exists", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/318196/medium.jpg"},
+    {name:"Ghost orchid", latin:"Orchidaceae", cat:"Plant", status:"Least Concern", description:"A leafless orchid that grows on trees and is difficult to find.", found:"Warm, humid forests of Florida and the Caribbean", population:"Unknown; no reliable total exists", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/660521336/medium.jpg"},
+    {name:"Giant pangolin", latin:"Smutsia gigantea", cat:"Mammal", status:"Endangered", description:"Africa's largest pangolin, covered in protective scales and feeding on ants and termites.", found:"Central and West Africa", population:"Unknown; declining because of hunting and trade", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/687642359/medium.jpg"},
+    {name:"Red Maple", latin:"Acer rubrum", cat:"Plant", status:"Least Concern", description:"A widespread deciduous tree known for bright autumn color.", found:"Eastern and central North America", population:"Widespread; no global count available", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/732555225/medium.jpg"},
+    {name:"Northern cardinal", latin:"Cardinalis cardinalis", cat:"Bird", status:"Least Concern", description:"A bright red songbird with a distinctive crest and black face mask.", found:"Eastern and central North America", population:"Common; no precise global count available", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/732610336/medium.jpg"},
+    {name:"Barred Owl", latin:"Strix varia", cat:"Bird", status:"Least Concern", description:"A woodland owl recognized by its barred brown-and-white plumage.", found:"Eastern and much of western North America", population:"Several million mature birds (broad estimate)", img:"https://inaturalist-open-data.s3.amazonaws.com/photos/732554589/medium.jpg"},
+  ];
+  const grid = document.getElementById('speciesGrid');
+  function renderGrid(filterCat, searchTerm){
+    const term = (searchTerm||'').toLowerCase();
+    const filtered = species.filter(s=>
+      (filterCat === 'all' || s.cat === filterCat) &&
+      (s.name.toLowerCase().includes(term) || s.latin.toLowerCase().includes(term))
+    );
+    grid.innerHTML = filtered.map(s=>`
+      <div class="species-card">
+        ${s.img.startsWith('http') ? `<img class="species-photo" src="${s.img}" alt="Photo of ${s.name}" loading="lazy" onerror="this.style.display='none'">` : `<div class="species-photo" style="background-image:${s.img}" role="img" aria-label="Illustration of ${s.name}"></div>`}
+        <div class="species-body">
+          <strong>${s.name}</strong>
+          <em>${s.latin}</em>
+          <span class="status-tag">${s.status}</span>
+          <p class="species-description">${s.description}</p>
+          <div class="species-facts">
+            <div><strong>Found:</strong> ${s.found}</div>
+            <div><strong>How many:</strong> ${s.population}</div>
+          </div>
+        </div>
+      </div>
+    `).join('') || '<p style="color:var(--ink-soft); font-size:14px;">No species match your search.</p>';
+  }
+
+  async function loadSpeciesPhotos(){
+    await Promise.all(species.map(async item=>{
+      try{
+        const response = await fetch(`${INAT_API}/observations?taxon_name=${encodeURIComponent(item.latin)}&photos=true&quality_grade=research&per_page=1&order=desc`);
+        if(!response.ok) return;
+        const observation = (await response.json()).results?.[0];
+        const photo = observation?.photos?.[0]?.url;
+        if(photo) item.img = photo.replace('/square.', '/medium.');
+      }catch(error){
+        console.warn(`Could not load photo for ${item.name}`, error);
+      }
+    }));
+    renderGrid(activeFilter, document.getElementById('speciesSearch').value);
+  }
+
+  renderGrid('all','');
+  let activeFilter = 'all';
+  loadSpeciesPhotos();
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      activeFilter = chip.dataset.filter;
+      renderGrid(activeFilter, document.getElementById('speciesSearch').value);
+    });
+  });
+  document.getElementById('speciesSearch').addEventListener('input', e=>{
+    renderGrid(activeFilter, e.target.value);
+  });
+</script>
+
+</body>
+</html>
