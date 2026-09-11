@@ -16,7 +16,6 @@ To create a digital canopy that documents and showcases rare and endangered anim
 - HTML5 Only
 
 ### Live Link
-https://azadkumar121264-ai.github.io/Canopy-Biodiversity/
-
+https://azadkumar121264-ai.github.io/Canopy-biodiversity/
 ---
 Made for animal lovers and wildlife conservation awareness.
