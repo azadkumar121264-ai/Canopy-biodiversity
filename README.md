@@ -20,8 +20,7 @@ To create a digital canopy that documents and showcases rare and endangered anim
 - HTML5 Only
 
 ### Live Link
-https://azadkumar121264-ai.github.io/Canopy-biodiversity/
-
+https://canopy-biodiversity-01.vercel.app/
 ### 👥 Contributors
 
 <table>
